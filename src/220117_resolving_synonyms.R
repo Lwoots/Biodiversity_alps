@@ -157,7 +157,7 @@ flora_alpina <- flora_alpina %>%
     is.na(Current_names) & is.na(Current_names_taxref) & is.na(Current_names_plantlist) ~ Full_names
   ))
 
-
+#In case of inconsistencies between datasets, use euromed name
 
 #However, there are lots of flora alpina species that aren't in either synonyms or accepted names
 
@@ -270,3 +270,50 @@ selected_join <- initial_join %>%
 
 library(ape)
 
+
+#Obj. 4) Combine subspecies
+
+#make small test dataset
+
+subsp <- all_dat %>% 
+  filter(Species %in% c("Aconitum variegatum", 
+                        "Asplenium trichomanes", 
+                        "Pulsatilla alpina",
+                        "Minuartia cherlerioides")) %>% 
+  select(Sequencing_ID,EuroMedAcceptedName_formatted, Species, Collineen, Montagnard, Alpin, Nival )
+
+check <- subsp %>% 
+
+  group_by(Species) %>% 
+
+  summarise(
+            c = max(Collineen),
+            m = max(Montagnard),
+            a = max(Alpin),
+            n = max(Nival))
+
+  subsp %>% 
+    group_by(Species) %>% 
+    summarise_at(vars(
+                 Collineen,
+                 Montagnard,
+                 Alpin,
+                 Nival), max)
+ch <-  left_join(subsp, check, by = "Species")
+ch <- ch %>% 
+  select(-c(Collineen,
+            Montagnard,
+            Alpin,
+            Nival)) 
+
+distinct(ch, Species, .keep_all = T)  
+
+#Now to apply it to the full dataset
+
+check <- all_dat %>%  
+  group_by(Species) %>% 
+  summarise_at(vars(
+    Collineen:SLO,
+    Nival), max)
+che <- left_join(all_dat, check, by = "Species")
+che <- distinct(che, Species, .keep_all = T)
