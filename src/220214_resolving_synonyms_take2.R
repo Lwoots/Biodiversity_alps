@@ -282,3 +282,5 @@ reduced_tree <- keep.tip(tree, taxon_reduced_to_tree$Tip)
 length(reduced_tree$tip.label)
 
 write.tree(reduced_tree, file = "220215_provisional_Daisie.tre")
+
+#The end
