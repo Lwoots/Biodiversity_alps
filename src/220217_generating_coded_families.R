@@ -7,7 +7,7 @@ library(tidyverse)
 library(here)
 library(ape)
 library(phytools)
-
+library("MonoPhy")
 
 tree <- read.tree(here("Data", "220221_for_Daisie_dated.tre"))
 final_taxonset <- read.csv(here("Data", "220221_taxonset_with_tips.csv"))
@@ -58,7 +58,7 @@ plot(simtree, type="fan",fsize=0.08,ftype="i")
 length(unique(final_taxonset$Famille)) 
 setdiff(unique(final_taxonset$Taxon_family), unique(final_taxonset$Famille))
 
-library("MonoPhy")
+
 
 taxonomy <- data.frame(Tip = final_taxonset$Tip, Family = final_taxonset$Taxon_family)
 
@@ -191,5 +191,31 @@ ordered_by_tree <- ordered_by_tree %>%
 ordered_by_tree <- ordered_by_tree %>% 
   select(Tip, EuroMedAcceptedName_formatted, Taxon_family, Collineen, Montagnard, Alpin, Nival,
          Origins, Status, Clade_name)
-write.csv(ordered_by_tree, file = "220222_coding_endemics.csv", row.names = F)
+#write.csv(ordered_by_tree, file = "220222_coding_endemics.csv", row.names = F)
 
+
+
+##Adding missing tips in, but in a way that won't fuck up my existing work
+
+missing_sp <- read.csv(here("Data", "220228_manually_coded_species2.csv"), sep = ";")
+
+#get tips by pulling out from full dataset
+
+miss_tips <- final_taxonset2 %>% 
+  filter(SeqIDS %in% missing_sp$Sequencing_ID)
+
+setdiff(missing_sp$Sequencing_ID, miss_tips$Sequencing_ID)
+
+
+tree_seed <- read.tree("/Users/larawootton/Documents/Doctorate/Tree_dating/Tree_files/211201_treePL_smooth0001.tre")
+
+tree_reduced <- keep.tip(tree_seed, c(final_taxonset$Tip, miss_tips$Tip))
+
+setdiff(tree$tip.label, tree_reduced$tip.label)
+
+taxonomy <- data.frame(Tip = final_taxonset$Tip, Family = final_taxonset$Taxon_family)
+
+monophyly <- AssessMonophyly(tree, taxonomy, verbosity = 15)
+GetSummaryMonophyly(monophyly)
+results <- GetResultMonophyly(monophyly)
+results$Family

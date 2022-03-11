@@ -159,22 +159,6 @@ flora_alpina <- flora_alpina %>%
 
 #In case of inconsistencies between datasets, use euromed name
 
-#However, there are lots of flora alpina species that aren't in either synonyms or accepted names
-
-#not_in_accepted <- setdiff(flora_alpina$Full_names, synonyms_euro$EuroMedAccepted_formatted)
-#not_in_synonyms <- setdiff(flora_alpina$Full_names, synonyms_euro$EuroMedNonAccepted_formatted)
-#
-#not_in_either <- intersect(not_in_accepted, not_in_synonyms)
-#
-#not_in_accepted_tax <- setdiff(flora_alpina$Full_names, synonyms_taxref$EuroMedAccepted_formatted)
-#not_in_synonyms_tax <- setdiff(flora_alpina$Full_names, synonyms_taxref$scientificName_formatted)
-#
-#not_in_either_tax <- intersect(not_in_accepted, not_in_synonyms)
-#
-#intersect(not_in_either_tax, not_in_either)
-#
-#setdiff(flora_alpina$Combined_names, synonyms_euro$EuroMedAccepted_formatted)
-#setdiff(flora_alpina$Combined_names, synonyms_plantlist$EuroMedAccepted_formatted)
 
 #Let's join the corrected names in flora alpina to corrected names in phyloalps to see what we still need
 
@@ -214,7 +198,7 @@ flora_alpina <- flora_alpina %>%
            case_when(
              !is.na(Inconsistancies) ~ Inconsistancies,
              is.na(Inconsistancies) ~ Combined_names
-           ))
+           )) #Ie in case of conflicts, euromed name is used
 
 #Now recombine with phyloalps
 
@@ -231,17 +215,50 @@ missing_data <- missing_data %>%
 
 
 more_species <- intersect(missing_data[,1], flora_alpina$Species) #But there's still 100 species that are in FA, mainly due to subspecies inconsistencies I think
-#Ie it is a full subspecies in flora alpina but just a species in phyloalps
 
-ms <- missing_data %>% 
-  filter(!EuroMedAcceptedName_formatted %in% more_species) %>% 
-  select(EuroMedAcceptedName_formatted)
-write_csv(ms, file = "Missing_species.csv")
+check <- flora_alpina %>% 
+  filter(Species %in% more_species) %>% 
+  select(Species, Full_names, DirectCorr)
+
+
+#Ie it is a full subspecies in flora alpina but just a species in phyloalps
 
 #So join on to the data set using species rather than all subspecies
 
 more_missing <- flora_alpina %>% 
   filter(Species %in% more_species)
+
+subsp_inconsist_dat <- left_join(combined_em_pa, 
+                                 more_missing, 
+                                 by = c("EuroMedAcceptedName_formatted" = "Species"))
+subsp_inconsist_dat <- subsp_inconsist_dat %>% 
+  filter(!is.na(Espece)) %>% #Espece is a random choice here, mainly just filtering out rows that don't have FA
+  select(!DirectCorr) #To allow rejoining
+#Remove the above rows from the full dataset
+
+all_dat_no <- all_dat %>% 
+  filter(!Sequencing_ID %in% subsp_inconsist_dat$Sequencing_ID) %>% 
+  select(!Species) #To allow rejoining
+
+#Combine back 
+
+all_dat_full <- rbind(all_dat_no, subsp_inconsist_dat)
+
+all_dat_full <- all_dat_full %>% 
+  filter(Project_name == "PhyloAlps")
+
+all_dat_full_missing <- all_dat_full %>% 
+  filter(is.na(Espece))
+
+
+
+
+#ms <- missing_data %>% 
+#  filter(!EuroMedAcceptedName_formatted %in% more_species) %>% 
+#  select(EuroMedAcceptedName_formatted)
+#write_csv(ms, file = "Missing_species.csv")
+
+
 
 #get 
 

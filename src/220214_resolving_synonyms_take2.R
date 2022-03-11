@@ -219,18 +219,23 @@ taxonset <- pa_fa_updated_combined3 %>%
   filter(!is.na(Espece))
 
 #Pull out species from the missing list that have been manually checked
+corrected_species <- read.csv(here("Data", "220228_manually_coded_species2.csv"), sep = ";")
+corrected_species <- corrected_species[,1:13]
 
-d_corrected <- d %>% 
-  filter(Sequencing_ID %in% c("BGN_IBH", "BGN_LFB", "BGN_DII", "BGN_DTT", "BGN_KIE",
-                              "BGN_KHP", "BGN_CDD", "BGN_GPM", "BGN_FEM", "BGN_KGA",
-                              "BGN_APT", "BGN_IGI", "BGN_GQR", "BGN_PQF", "GWM_1539",
-                              "GWM_1231"))
-more <- phyloalps_no_euroname %>% 
-  filter(Sequencing_ID %in% c("BGN_IBH", "BGN_LFB", "BGN_DII", "BGN_DTT", "BGN_KIE",
-                              "BGN_KHP", "BGN_CDD", "BGN_GPM", "BGN_FEM", "BGN_KGA",
-                              "BGN_APT", "BGN_IGI", "BGN_GQR", "BGN_PQF", "GWM_1539",
-                              "GWM_1231"))
-added_species <- rbind(d_corrected, more)
+added_species <- pa_fa_updated_combined3 %>% 
+  filter(Sequencing_ID %in% corrected_species$Sequencing_ID)
+
+#d_corrected <- d %>% 
+#  filter(Sequencing_ID %in% c("BGN_IBH", "BGN_LFB", "BGN_DII", "BGN_DTT", "BGN_KIE",
+#                              "BGN_KHP", "BGN_CDD", "BGN_GPM", "BGN_FEM", "BGN_KGA",
+#                              "BGN_APT", "BGN_IGI", "BGN_GQR", "BGN_PQF", "GWM_1539",
+#                              "GWM_1231"))
+#more <- phyloalps_no_euroname %>% 
+#  filter(Sequencing_ID %in% c("BGN_IBH", "BGN_LFB", "BGN_DII", "BGN_DTT", "BGN_KIE",
+#                              "BGN_KHP", "BGN_CDD", "BGN_GPM", "BGN_FEM", "BGN_KGA",
+#                              "BGN_APT", "BGN_IGI", "BGN_GQR", "BGN_PQF", "GWM_1539",
+#                              "GWM_1231"))
+#added_species <- rbind(d_corrected, more)
 
 taxonset <- rbind(taxonset, added_species)
 
@@ -245,7 +250,11 @@ taxonset <- taxonset %>%
 #Make species column based on accepted names
 
 taxonset <- taxonset %>% 
-  mutate(Species_name = str_extract(EuroMedAcceptedName_formatted, "[A-Za-z]+ [a-z\\-]+") )
+  mutate(Species_name_nas = str_extract(EuroMedAcceptedName_formatted, "[A-Za-z]+ [a-z\\-]+") ) %>% 
+  mutate(Species_name = case_when(!is.na(Species_name_nas) ~ Species_name_nas,
+                                  is.na(Species_name_nas) ~ Provider_Name)) #For species that don't have euromed accepted names
+
+
 
 check <- taxonset %>%  
   group_by(Species_name) %>% 
@@ -269,7 +278,7 @@ final_taxonset <- final_taxonset %>%
   select(!c(DB_ID, Sample_ID, Provider_Name, Scientific_Name, Nom_Taxon_verifie_ThePlantList,
             No_Flora_alpina, No_Famille, No_Genre, No_Espece, No_Sous_espece))
 
-#write.csv(final_taxonset, file = "220221_taxonset_resolved.csv", row.names = F)
+#write.csv(final_taxonset, file = "220302_taxonset_resolved.csv", row.names = F)
 rm(list=ls(pattern="recover"))
 rm(list=ls(pattern="pa"))
 rm(list=ls(pattern="che"))
@@ -280,10 +289,13 @@ rm(d)
 rm(taxonset)
 rm(miss)
 remove(more)
+rm(incorrect_names)
+rm(added_species)
+rm(corrected_species)
 
 # Join to tree ####
 
-final_taxonset <- read.csv(here("Data", "220221_taxonset_resolved.csv"))
+final_taxonset <- read.csv(here("Data", "220302_taxonset_resolved.csv"))
 tree <- read.tree("/Users/larawootton/Documents/Doctorate/Tree_dating/Tree_files/211201_treePL_smooth0001.tre")
 tips <- tree$tip.label
 
@@ -308,8 +320,8 @@ taxon_reduced_to_tree <- final_taxonset %>%
 reduced_tree <- keep.tip(tree, taxon_reduced_to_tree$Tip)
 length(reduced_tree$tip.label)
 
-#write.tree(reduced_tree, file = "220221_for_Daisie_dated.tre")
-#write.csv(taxon_reduced_to_tree, file = "220221_taxonset_with_tips.csv", row.names = F)
+#write.tree(reduced_tree, file = "220302_for_Daisie_dated.tre")
+#write.csv(taxon_reduced_to_tree, file = "220302_taxonset_with_tips.csv", row.names = F)
 #The end
 
 
