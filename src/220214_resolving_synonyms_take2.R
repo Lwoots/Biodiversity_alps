@@ -158,7 +158,7 @@ pa_fa_updated_combined2 <- rbind(pa_fa_updated_combined_less_recover, recoverabl
 #What is still missing?
 t <- pa_fa_updated_combined2 %>% filter(is.na(Espece)) 
 #t <- t %>% 
-  filter(!is.na(EuroMedAcceptedName_formatted))
+#  filter(!is.na(EuroMedAcceptedName_formatted))
 t <- t %>% 
   distinct(EuroMedAcceptedName_formatted, .keep_all = T) #286 no alpina data
 
@@ -244,6 +244,22 @@ taxonset <- rbind(taxonset, added_species)
 taxonset <- taxonset %>% 
   filter(!Sequencing_ID %in% incorrect_names$Sequencing_ID)
 
+#Get rid of invasives ####
+
+data <- read.csv(here("Data", "TRAITS_ALL_2022-03-22.csv"), sep = ";")
+
+invasives <- data %>% 
+  select(libelle, IMMIG_INVASIV) %>% 
+  filter(str_detect(IMMIG_INVASIV, "neophyte")) %>% 
+  mutate(Species = str_extract(libelle, "[A-Za-z]+ [a-z\\-]+"))
+
+aliens <- data.frame(Species = intersect(taxonset$EuroMedAcceptedName_formatted, invasives$Species))
+
+
+taxonset <- taxonset %>% 
+  filter(!EuroMedAcceptedName_formatted %in% aliens$Species) %>% 
+  filter(!Provider_Name %in% aliens$Species) %>% 
+  filter(!EuroMedAcceptedName_formatted == "Cylindropuntia imbricata")
 
 #Combine subspecies ####
 
