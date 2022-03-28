@@ -259,7 +259,7 @@ aliens <- data.frame(Species = intersect(taxonset$EuroMedAcceptedName_formatted,
 taxonset <- taxonset %>% 
   filter(!EuroMedAcceptedName_formatted %in% aliens$Species) %>% 
   filter(!Provider_Name %in% aliens$Species) %>% 
-  filter(!EuroMedAcceptedName_formatted == "Cylindropuntia imbricata")
+  filter(!EuroMedAcceptedName_formatted %in% c("Cylindropuntia imbricata"))
 
 #Combine subspecies ####
 
@@ -279,7 +279,7 @@ check <- taxonset %>%
 
 #Shuffle dataset to prevent biases
 
-set.seed(133)
+set.seed(1333)
 taxonset <- taxonset[sample(1:nrow(taxonset)),]
 
 final_taxonset <- distinct(taxonset, Species_name, .keep_all = T)
@@ -294,7 +294,7 @@ final_taxonset <- final_taxonset %>%
   select(!c(DB_ID, Sample_ID, Provider_Name, Scientific_Name, Nom_Taxon_verifie_ThePlantList,
             No_Flora_alpina, No_Famille, No_Genre, No_Espece, No_Sous_espece))
 
-#write.csv(final_taxonset, file = "220302_taxonset_resolved.csv", row.names = F)
+#write.csv(final_taxonset, file = "220328_taxonset_resolved.csv", row.names = F)
 rm(list=ls(pattern="recover"))
 rm(list=ls(pattern="pa"))
 rm(list=ls(pattern="che"))
@@ -311,8 +311,8 @@ rm(corrected_species)
 
 # Join to tree ####
 
-final_taxonset <- read.csv(here("Data", "220302_taxonset_resolved.csv"))
-tree <- read.tree("/Users/larawootton/Documents/Doctorate/Tree_dating/Tree_files/211201_treePL_smooth0001.tre")
+final_taxonset <- read.csv(here("Data", "220328_taxonset_resolved.csv"))
+tree <- read.tree("/Users/larawootton/Documents/Doctorate/Tree_dating/Tree_files/220301_treePL_optimisation_run2_final.tre")
 tips <- tree$tip.label
 
 seq_ids <- str_match(tips, ".*_(.*?_.*)")[,2] #Pull out seq ids from tree tips
@@ -336,8 +336,8 @@ taxon_reduced_to_tree <- final_taxonset %>%
 reduced_tree <- keep.tip(tree, taxon_reduced_to_tree$Tip)
 length(reduced_tree$tip.label)
 
-#write.tree(reduced_tree, file = "220302_for_Daisie_dated.tre")
-#write.csv(taxon_reduced_to_tree, file = "220302_taxonset_with_tips.csv", row.names = F)
+#write.tree(reduced_tree, file = "220328_for_Daisie_datedrun2.tre")
+#write.csv(taxon_reduced_to_tree, file = "220328_taxonset_with_tips.csv", row.names = F)
 #The end
 
 
