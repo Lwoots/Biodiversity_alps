@@ -7,67 +7,50 @@ library(tidyverse)
 library(here)
 library(ape)
 library(phytools)
-library("MonoPhy")
+library(MonoPhy)
+library(ggtree)
 
-tree <- read.tree(here("Data", "220221_for_Daisie_dated.tre"))
-final_taxonset <- read.csv(here("Data", "220221_taxonset_with_tips.csv"))
+tree <- read.tree(here("Data", "220328_for_Daisie_datedrun2.tre"))
+final_taxonset <- read.csv(here("Data", "220328_taxonset_with_tips.csv"))
+species_manual <- read.csv(here("Data", "220228_manually_coded_species2.csv"), sep = ";")
+flora_provences <- read.csv(here("Data", "220304_Provinces_sorted_to_regions.csv"), sep = ";")
 
-final_taxonset[2574,16] <- 0 #Question marks in the dataset and book
-final_taxonset[1322,16] <- 0
+#Data wrangling ####
+
+final_taxonset[final_taxonset == "?"] <- 0 #Question marks in the dataset and book
+setdiff(flora_provences$Department, names(final_taxonset)[c(19:74)])
+setdiff(names(final_taxonset)[c(19:74)], flora_provences$Department)
+
+flora_provences$Department[flora_provences$Department == "0_OB"] <- "O_OB"
+flora_provences$Department[flora_provences$Department == "0_SW"] <- "O_SW"
+
+names(final_taxonset)[41] <- "O_OB"
+names(final_taxonset)[42] <- "O_SW"
 
 #Code tips as alpine non-alpine
 
-mainland <- c("BGN_IBH", "BGN_LFB", "BGN_DTT", "BGN_KHP", "BGN_CDD",
-              "BGN_GPM", "BGN_FEM", "BGN_KGA", "BGN_APT", "BGN_IGI") #These are the manually added taxa
-non_endem <- c("BGN_DII", "BGN_KIE", "BGN_GQR")
-alpine <- c("BGN_PQF","GWM_1539", "GWM_1231")
+mainland <-  species_manual %>% filter(Status %in% c("Mainland")) #These are the manually added taxa
+non_endem <- species_manual %>% filter(Status %in% c("Non_endemic_MaxAge"))
+alpine <- species_manual %>% filter(Status %in% c("Endemic"))
 
 final_taxonset <- final_taxonset %>% 
   mutate(Origins = case_when(Alpin %in% c(1,2) | Nival %in% c(1,2) ~ "High_elevation",
                      Alpin %in% c(0) & Nival %in% c(0) ~ "Low_elevation"
-                     )
-         ) %>% 
-  mutate(Status = case_when(
+                     ),
+         Status = case_when(
                     (Alpin %in% c(1,2) | Nival %in% c(1,2)) & Subalpin %in% c(0, 1) & Montagnard == 0 ~ "Endemic",
                     Alpin %in% c(1,2) & ( Subalpin > 1 | Montagnard > 0 | Collineen > 0)  ~ "Non_endemic_MaxAge",
                     Alpin == 0 & ( Subalpin > 0 | Montagnard > 0 | Collineen > 0)  ~ "Mainland",
-                    Sequencing_ID %in% mainland ~ "Mainland",
-                    Sequencing_ID %in% non_endem ~ "Non_endemic_MaxAge",
-                    Sequencing_ID %in% alpine ~ "Endemic")
-  )
+                    Sequencing_ID %in% mainland$Sequencing_ID ~ "Mainland",
+                    Sequencing_ID %in% c(non_endem$Sequencing_ID, "BGN_ECD") ~ "Non_endemic_MaxAge",
+                    Sequencing_ID %in% alpine$Sequencing_ID ~ "Endemic")
+  ) 
 
-
-#Set up for ancestral trait reconstruction
-tip_classifications <- as.vector(final_taxonset$Status)
-names(tip_classifications) <- final_taxonset$Tip
-
-test_anc <- ace(tip_classifications, tree, type = "discrete", model = "ER")
-
-plot(tree)
-nodelabels(node=1:tree$Nnode+Ntip(tree),
-           pie=test_anc$lik.anc, cex=0.5)
-
-simtree <- make.simmap(tree, tip_classifications, model = "ER")
-
-plot(simtree, type="fan",fsize=0.08,ftype="i")
-
-#
 
 #How many orders are there 
 
 length(unique(final_taxonset$Famille)) 
 setdiff(unique(final_taxonset$Taxon_family), unique(final_taxonset$Famille))
-
-
-
-taxonomy <- data.frame(Tip = final_taxonset$Tip, Family = final_taxonset$Taxon_family)
-
-monophyly <- AssessMonophyly(tree, taxonomy, verbosity = 15)
-GetSummaryMonophyly(monophyly)
-results <- GetResultMonophyly(monophyly)
-results$Family
-
-write.csv(results, file = "220221_Checking_monophyly_trimmed_tree.csv", row.names = T)
 
 #tips that are misplaced
 
@@ -103,25 +86,77 @@ final_taxonset$Taxon_family[final_taxonset$Sequencing_ID == "BGN_EDQ"] <- "Ranun
 final_taxonset$Taxon_family[final_taxonset$Sequencing_ID == "BGN_CHI"] <- "Ranunculaceae"
 final_taxonset$Taxon_family[final_taxonset$Sequencing_ID == "BGN_CIQ"] <- "Fabaceae"
 final_taxonset$Taxon_family[final_taxonset$Sequencing_ID == "BGN_DLL"] <- "Fabaceae"
+final_taxonset$Taxon_family[final_taxonset$Sequencing_ID == "BGN_DVL"] <- "Poaceae"
+final_taxonset$Taxon_family[final_taxonset$Sequencing_ID == "BGN_CPV"] <- "Poaceae"
+
+final_taxonset$Taxon_family[final_taxonset$Sequencing_ID == "BGN_CGC"] <- "Asteraceae"
+final_taxonset$Taxon_family[final_taxonset$Sequencing_ID == "BGN_DNC"] <- "Salicaceae"
+final_taxonset$Taxon_family[final_taxonset$Sequencing_ID == "BGN_DAL"] <- "Alismataceae"
+final_taxonset$Taxon_family[final_taxonset$Sequencing_ID == "BGN_VV"] <- "Lamiaceae"
+
 #Wrong in tree: Linnaea_borealis BGN_KIS Hedera helix RSZ_RSZAXPI001130-87 Polemonium_caeruleum RSZ_RSZAXPI000710-107
-#Osyris_alba
+#Osyris_alba, luckily all mainland, so can drop them
 
-final_taxonset$Status[final_taxonset$Tip == "Dianthus_barbatus_278075_PHA002888_BGN_EDR"] <- "Mainland"
-final_taxonset$Status[final_taxonset$Tip == "Pimpinella_alpina_1533290_PHA006713_BGN_HHH"] <- "Mainland"
 
-tree <- drop.tip(tree, c("Oxalis_debilis_519149_PHA006334_BGN_VT"))
-final_taxonset <- final_taxonset %>% filter(!Tip == "Oxalis_debilis_519149_PHA006334_BGN_VT")
+tree <- drop.tip(tree, c("Osyris_alba_350585_PHA006326_BGN_PXV", "Polemonium_caeruleum_174663_PHA006879_RSZ_RSZAXPI000710-107",
+                         "Linnaea_borealis_77623_PHA005374_BGN_KIS", "Hedera_helix_4052_PHA004286_RSZ_RSZAXPI001130-87",
+                         "Polycarpon_tetraphyllum_115622_PHA006882_BGN_BAM"))
+final_taxonset <- final_taxonset %>% filter(!Tip %in% c("Osyris_alba_350585_PHA006326_BGN_PXV", "Polemonium_caeruleum_174663_PHA006879_RSZ_RSZAXPI000710-107",
+                                                        "Linnaea_borealis_77623_PHA005374_BGN_KIS",
+                                                        "Hedera_helix_4052_PHA004286_RSZ_RSZAXPI001130-87",
+                                                        "Polycarpon_tetraphyllum_115622_PHA006882_BGN_BAM"))
 
-#Make plots of all the families
+
+#Check monophyly ####
+
+taxonomy <- data.frame(Tip = final_taxonset$Tip, Family = final_taxonset$Taxon_family)
+
+monophyly <- AssessMonophyly(tree, taxonomy, verbosity = 15)
+GetSummaryMonophyly(monophyly)
+results <- GetResultMonophyly(monophyly)
+results$Family
+
+#write.csv(results, file = "220328_Checking_monophyly_trimmed_tree.csv", row.names = T)
+
+
+#Getting data into daisie format ####
+
+tree_order <- data.frame(Tip=tree$tip.label)
+
+ordered_by_tree <- left_join(tree_order, final_taxonset, by = "Tip") #Organising so is in the same order as the tree
+
+ordered_by_tree$Tip[1:20] 
+
+#Code non-endemics
+
+#First name clade of non-endemics
+
+ordered_by_tree <- ordered_by_tree %>% 
+  mutate(Clade_name =
+           case_when(
+             Status == "Non_endemic_MaxAge" ~ paste(Genre, row.names(.), sep = "_")))
+ordered_by_tree <- ordered_by_tree %>% 
+  select(Tip, EuroMedAcceptedName_formatted, Taxon_family, Collineen, Montagnard, Subalpin, Alpin, Nival,
+         Origins, Status, Clade_name)
+
+ordered_by_tree %>% filter(is.na(Status))
+
+ordered_by_tree$Status[ordered_by_tree$Tip == "Coincya_cheiranthos_montana_400013_PHA002477_BGN_ECD"] <- "Non_endemic_MaxAge"
+
+#write.csv(ordered_by_tree, file = "220328_coding_endemics.csv", row.names = F)
+
+
+#Make plots of all the families ####
 #
 
-node <-6483
+node <-3208
 clade <- extract.clade(tree, node)
 plot(clade)
 
 clade_data <- final_taxonset %>% 
   filter(Tip %in% clade$tip.label) %>% 
   select(Tip, Status)
+
 
 stat <- as.vector(clade_data$Status)
 names(stat) <- clade_data$Tip
@@ -139,24 +174,13 @@ plot(pd,
      fsize=0.6,
      ftype="i", 
      colors = cols, 
-     xlim = c(0,20), mar=c(3.1,0.1,0.1,0.1), cex = 0.25)
+     xlim = c(0,31), mar=c(3.1,0.1,0.1,0.1), cex = 0.2)
 axisPhylo(side = 1)
-abline(v = 42)
+#abline(v = 42)
 add.simmap.legend(colors=cols, fsize = 0.5, x = 1, y = 0.1)
 
 
-
-clade_ace <- ace(stat, clade, type = "discrete", model = "ER")
-
-plotTree(clade, cex = 0.5, xlim = c(0,90))
-
-nodelabels(node=1:clade$Nnode+Ntip(clade),
-           pie=clade_ace$lik.anc,piecol=cols,cex=0.5)
-tiplabels(pie=to.matrix(stat,sort(unique(stat))),piecol=cols,cex=0.3)
-add.simmap.legend(colors=cols,prompt=FALSE,x=0.9*par()$usr[1],
-                  y=-max(nodeHeights(tree)),fsize=0.8)
-
-library(ggtree)
+#ggplot for clarity
 
 g <- ggtree(clade, ladderize = F) %<+% clade_data
 
@@ -165,57 +189,41 @@ p <- g + geom_tiplab(hjust = 0, nudge_x = 1) +
   geom_tippoint(aes(color = Status), size = 3) +
   scale_colour_manual(values = c("#D72000","#1BB6AF","#FFAD0A")) +
   theme(legend.position = "n") +
-  xlim(0,25)
+  xlim(0,30)
 p
 
 
-#Getting data into daisie format
+#Assign species to regions ####
 
-tree_order <- data.frame(Tip=tree$tip.label)
+west <- flora_provences %>% 
+  filter(Geology_regions == "Western Alps") %>% 
+  select(Department) %>% 
+  pull()
+east <- flora_provences %>% 
+  filter(Geology_regions == "Eastern Alps") %>% 
+  select(Department) %>% 
+  pull()
+central <- flora_provences %>% 
+  filter(Geology_regions == "Central Alps") %>% 
+  select(Department) %>% 
+  pull()
 
-rev(tree_order)
-final_taxonset$Tip[1:20]
+periph <- flora_provences %>% 
+  filter(Edge_regions == "Peripheral") %>% 
+  select(Department) %>% 
+  pull()
+inter <- flora_provences %>% 
+  filter(Edge_regions == "Internal") %>% 
+  select(Department) %>% 
+  pull()
 
-ordered_by_tree <- left_join(rev(tree_order), final_taxonset, by = "Tip") #Organising so is in the same order as the tree
+#Sum columns in each region, then code as 0,1
+final_taxonset_regions <- final_taxonset %>% 
+  mutate(Sum_W = rowSums(across(all_of(west))),
+         Sum_C = rowSums(across(all_of(central))),
+         Sum_E = rowSums(across(all_of(east))),
+         Sum_P = rowSums(across(all_of(periph))),
+         Sum_I = rowSums(across(all_of(inter))),
+         across(Sum_W:Sum_I, ~ if_else(.x >0, 1, 0))
+         )
 
-ordered_by_tree$Tip[1:20] 
-
-#Code non-endemics
-
-#First name clade of non-endemics
-
-ordered_by_tree <- ordered_by_tree %>% 
-  mutate(Clade_name =
-           case_when(
-             Status == "Non_endemic_MaxAge" ~ paste(Genre, row.names(.), sep = "_")))
-ordered_by_tree <- ordered_by_tree %>% 
-  select(Tip, EuroMedAcceptedName_formatted, Taxon_family, Collineen, Montagnard, Alpin, Nival,
-         Origins, Status, Clade_name)
-#write.csv(ordered_by_tree, file = "220222_coding_endemics.csv", row.names = F)
-
-
-
-##Adding missing tips in, but in a way that won't fuck up my existing work
-
-missing_sp <- read.csv(here("Data", "220228_manually_coded_species2.csv"), sep = ";")
-
-#get tips by pulling out from full dataset
-
-miss_tips <- final_taxonset2 %>% 
-  filter(SeqIDS %in% missing_sp$Sequencing_ID)
-
-setdiff(missing_sp$Sequencing_ID, miss_tips$Sequencing_ID)
-
-
-tree_seed <- read.tree("/Users/larawootton/Documents/Doctorate/Tree_dating/Tree_files/211201_treePL_smooth0001.tre")
-
-tree_reduced <- keep.tip(tree_seed, c(final_taxonset$Tip, miss_tips$Tip))
-
-setdiff(tree$tip.label, tree_reduced$tip.label)
-
-taxonomy <- data.frame(Tip = final_taxonset$Tip, Family = final_taxonset$Taxon_family)
-
-monophyly <- AssessMonophyly(tree, taxonomy, verbosity = 15)
-GetSummaryMonophyly(monophyly)
-results <- GetResultMonophyly(monophyly)
-results$Family
