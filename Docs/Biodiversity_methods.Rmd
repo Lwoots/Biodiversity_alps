@@ -1,0 +1,125 @@
+---
+title: "Methods"
+output: html_document
+---
+
+```{r, include=F}
+require(here)
+```
+
+
+## Subdividing the alps
+
+I wanted to find out whether there was differences in biodiversity across the three floristic regions described by @Thiel2011, and whether that changed with altitudinal zone. The data from Flora Alpina has been transcribed previously into a document called `Cristina_Etages_Provinces.ods`. I divided the provinces roughly into the alpine regions as based in the image below (as recorded in `Alpine_floristic_regions.csv`). The divide between Central and Eastern Alps was difficult though, as several large provinces cut through the potential break zone.
+
+![Red lines indicate the divisions used in this analysis, purple line shows the actual approximate break point from Thiel-Eganter 2011](Alpine_regions.png)
+### Dividing the phylogeny into different colonisation events
+
+Seb wants to algorithmically break the phylogeney into colonisation events. Flo has two worries. 1) That by not having external sister species we will miss colonisation events (eg IIII instead of IIOII), and 2) the direction of colonisation is often Alps -> Artic rather than Artic -> ALPS.
+
+I first treated it as the entire alpine flora vs the arctic/carpathians etc. An algorithmic would work quite well in most cases. For example, we have enough external samples that an algorithm would correctly divide Rhododendron and Pyrola into three colonisation events each. However, it would fail in the case of the Arctostaphylos/Arbutus where the sister species in the V2, Arctostaphylos alpina and Arbutus unedo, arrived separately. Similarly, it would code Erica as diversifying in the Alps (biogeographical studies showed that erica originated in Europe, but weren't more precise than that).  Another potential problem for the algorithm is when there is a long branch leading to a widespread species, for example Calluna vulgaris. The algorithm might place the colonisation into the alps along the short branch separating the Artic and Alpine samples, when it should rather be placed along the long branch, as C. vulgaris originated in the Iberian peninsula and spread northwards. 
+
+Conversely, the literature search doesn't always help in cases like Vaccinium, where I couldn't find a relevant biogeographical study, or even a well resolved phylogeny.
+
+I then treated it as high elevation vs low elevation/outside the Alps, where I used the Flora Alpina data to work out which elevation belt a species occurs in. The first thing that we would have to decide here is what constitutes a high elevation plant.  For example, species like Vaccinium myrtillus are commonly found from low to high elevation.
+This approach solved problems like Erica, as there was only one high elevation species, but didn't help with the Arctostaphylos/Arbutus clade.
+
+***Change in focus***
+
+We decided to trim the dataset to species in the Alpine Arc only. Consequently, there is a change in focus to within Alps dynamics rather than European dynamics, with the above-treeline Alpine and Nival regions considered the 'islands' and below treeline the 'mainland'. We did this as we don't have a full sampling of the entire European and Scandinavian flora, which leads to geographic bias. Plus it is hard to tell directionality of dispersion events, e.g. arctic-alps or alps arctic. Other advantages are that ecological data can be standardised across species using Flora Alpina, and we have a well defined regional pool to be put into DAISIE.
+
+
+# Matching synonyms between flora alpina and phyloalps ####
+
+See `220117_resolving_synonyms.r` script.
+
+In all datasets, formatted subspecies name to be trinomial without subsp./var. etc
+
+Looped FA names through all synonymy files that Julien gave me - euromed, taxref, plant list.
+If any were picked up as synonyms, the name was replaced with the Accepted name in the given list.
+However, there were inconsistencies in the lists - the same flora alpina name was given a different accepted name in the different lists approximately 300 times. If in doubt, went with euromed.
+There was also a surprising number (>1500) of names in FA that weren't in any of the files. Some of this could be attributed to different subspecies, but not all of them.
+
+Regardless, this doesn't affect me if the missing names aren't phyloalps species. So joined corrected FA names to phyloalps dataset. After filtering out carpathians, pyrenees, tropical etc using project name, there were 482 entries and 331 taxa that weren't connected to FA. Of those, ~100 are likely to be subspecies issues, the other 200 need to be checked.
+
+Julien says go with euromed names
+
+#Resolving synonymns take 2 ####
+
+My code was getting convoluted and confusing so redid the above analysis in `220214_resolving_synonyms_take2.R`.
+
+Files used:    
+* `PHYLOALPS_HERBARIUM_66_16feb2022.csv` = the latest (at the time) phyloalps species list from Seb
+* `UPDATE/PhyloAlpsDirectCorrespondances.csv` = file where Julien updated phyloalps species names from the euromed database
+* `Cristina_Etages_Provinces.csv` = Flora Alpina ecological and taxonomic dataset
+* `SynonymyEuromed.csv` = file containing all synonyms and accepted names in the EuroMed database
+* `list.error.filters.csv`= file containing all accessions that have incorrect data associated with them, so should be removed
+
+***Data wrangling methods***
+
+First, corrected typos and standardised subspecies formatting across datasets. Next, attached the DirectCorrespondances file to the phyloalps dataset using the unique sequencing identifier. This will allow me to access the old names later, as well as project info etc. I then filtered the dataset to only have accessions that belong to the 'PhyloAlps' project, thereby removing most Norwegien, tropical, Carpatian samples.   
+
+Next, I joined this dataset to the Flora Alpina dataset by accepted name. But there were over 1000 species that didn't have a match in flora alpina, probably because of synonymy and subspecies issues. So then I updated the names in FA by writing a loop that compares each name to all the synonyms in the EuroMed database. (Initially I did this for the TaxRef and Plantlist databases too, but I got conflicting results, so just went with Euromed). When rejoining to the phyloalps dataset, there were still ~800 species that couldn't be matched to FA.
+
+So for the oustanding species, I checked for inconsistencies in subspecies (eg one dataset uses a binomial, the other a trinomial), by cutting trinomials down to binomials and then rejoining the datasets. This reduced the unmatched species to ~280 distinct species (~500 accessions).
+
+Of these species, ~65 could be matched to flora alpina using the original, non-updated name in the PhyloAlps dataset, leaving 200 to be manually matched.
+
+The last 200 were first looked at by Seb and Flo, who classified those that they knew as definitely in the alps or not. The rest I googled, using gbif, INPN, florealps etc to get an idea of their distribution. I backed this up using the script `AltiCheckScript.R`, written by Julien. This checks LECA records of occurrences in the alps, as well as giving an estimation of altitudinal distribution. This altitudinal distribution was also used to code species as mainland or endemic, based on a 2500m cut off.
+
+Next, I merged the ecological data by species, by combining across the subspecies for a given species, then randomly dropping all but one accession per species. Finally, join to tree tip names using sequencing IDs.
+
+Detailed methods 19/04/2022:
+
+* Convert all names to trinomials by removing var. and subsp.
+* Connect phyloalps herbarium data to their corrected names provided by Julien (direct correspondences) by joining with sequecing ID
+* Reduce data set to predominantly Alps species by including only species sequenced under the 'PhyloAlps' project. This removes most arctic, pyranees, carpathians. 
+* Find updated names for Flora Alpina by comparing all FA names to synonyms in the euromed synonyms list in a loop
+* If a FA name is flagged as a synonym, replaced with accepted name, otherwise left as is
+* Join FA data to phyloalps data using the accepted name trinomials in both
+* Still over 700 entries in phyloalps that aren't joined to FA data
+* Compare accepted binomials in phyloalps and fa, to see if there are subspecies issues
+* Around 300 entries in phyloalps can by matched via binomials
+* Those entries are removed from phylo, joined to FA, readded to phylo
+* As the euromed synonymy sheet used to correct FA not as up-to-date as the direct correspondences file, the provider name in phyloalps was compared to trinomal, binomial, and outdated names in FA (this for the remaining entries that can't be matched to FA)
+* Add in species that were manually deemed to be relevant
+* Filtered out libraries that have bioinfomatic errors
+* Remove invasives
+* Make another binomial column with filtered dataset
+* Combine habitat data across subspecies
+* Shuffle rows
+* Keep one of each species name
+
+
+
+
+#Getting data ready for daisie
+
+Species that don't have FA data manually coded as mainland, endemic etc, using google and the altitude data provided by Julien (`AltiCheckScript.R`). Species with FA data coded like this: Endemic = common in Alpin or Nival, doesn't occur in Collineen or Montagnard, for flexiblity allowed to be found in Subalpin but not commonly. Non_endemic = occurs in Alpine plus at least one of the lower zones. Mainland = not found in Alpine, but occurs in lower zones.
+
+I corrected the families of some taxa (from swapped libraries I think).
+
+Then assessed the monophyly of all families in the dataset using MonoPhy package. This was so that I could be aware of incorrect placements when coding radiations.
+
+For each family, I simulated stochastic character maps (make.simmap(), phytools v1.0-1) with 500 replicate simulations, which infers ancestral states at internal nodes. I then made figures of each family and inferred state history. The point of this was to make deciding what is a radiation a bit less subjective.
+
+I manually looked through each of the trees to decide on radiations. If a set of tips had an ancestral node recovered to be more than 50% non_endemic or endemic, was considered to be an endemic radiation. Except if the node was joining two genera, then each genus was considered separately.
+
+There was a bit of debate over how to treat non-endemics. If there is a clade consisting of multiple non-endemics, should it be treated as a colonisation event or radiation? I went with radiation so as to not over estimate colonisation.
+
+The first attempt is in the file `220222_coding_endemics.xlsx` using `220221_for_Daisie_dated.tre` and `220221_taxonset_with_tips.csv`. However, it only has a few manually added species in it. Some familes need to be redone with more species. Going to have to do it in a different file and then combine.
+
+The hopefully final dataset is `220302_taxonset_resolved.csv` includes manually added species, plus corrects the small error in `220228_taxonset_resolved.csv` where species without euromed accepted names were getting dropped.
+
+
+###Daisie ####
+
+To extract results from multiple files
+```for f in *Rout; do awk '$1 == "1"' $f >> outputs; done```
+
+
+#Things to do after trip:
+
+*Redo daise parameterisation with full tree
+*Sort out synonyms in missing species + assign to clades
+*Start proper analysis, put outputs into a folder with readme 
