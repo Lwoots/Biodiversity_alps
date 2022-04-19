@@ -25,7 +25,7 @@ euro_med <- read.csv(here("Data/UPDATE2022", "PhyloAlpsDirectCorrespondances.csv
 
 flora_alpina <- read.csv(here("Data", "Cristina_Etages_Provinces.csv"))
 
-synonyms_euro <- read.csv(here("Data/PHYLOALPS", "SynonymyEuromed.csv"))
+synonyms_euro <- read.csv(here("Data/UPDATE2022", "SynonymyEuromed.csv"))
 
 incorrect_names <- read.csv(here("Data/list.error.filters.csv")) #Libraries that are incorrect
 
@@ -54,9 +54,16 @@ euro_med[1831, 19] <- "Hippophae rhamnoides"
 
 #Next get subspecies and vars into same format across datasets
 
-flora_alpina$FA_Full_names <- str_c(flora_alpina$Species, flora_alpina$Sous_espece, sep = " ")
+#Flora alpina
+flora_alpina$FA_Full_names <- str_c(flora_alpina$Species, flora_alpina$Sous_espece, sep = " ") #~Combines species and subsp into trinomial where relevant
 flora_alpina$FA_Full_names <- str_trim(flora_alpina$FA_Full_names, side = "right") #Gets rid of white space at end of text
 
+#Direct correspondences file
+euro_med$EuroMedAcceptedName_formatted <- str_replace_all(euro_med$EuroMedAcceptedName,
+                                                          pattern = c(" var. " = " ",
+                                                                      " subsp. " = " "))
+
+#euromed synonyms
 synonyms_euro$EuroMedAccepted_formatted <- str_replace_all(synonyms_euro$EuroMedAccepted,
                                                            pattern = c(" var. " = " ",
                                                                        " subsp. " = " "))
@@ -64,14 +71,24 @@ synonyms_euro$EuroMedAccepted_formatted <- str_replace_all(synonyms_euro$EuroMed
 synonyms_euro$EuroMedNonAccepted_formatted <- str_replace_all(synonyms_euro$EuroMedNonAccepted,
                                                               pattern = c(" var. " = " ",
                                                                           " subsp. " = " "))
+#Correct a few names that still contain the author's name
+synonyms_euro[synonyms_euro == "Carex filiformis L."] <- "Carex filiformis" 
+synonyms_euro[synonyms_euro == "Veratrum album L."] <- "Veratrum album"
+synonyms_euro[synonyms_euro == "Ranunculus auricomus coll."] <- "Ranunculus auricomus"
 
-euro_med$EuroMedAcceptedName_formatted <- str_replace_all(euro_med$EuroMedAcceptedName,
-                                                          pattern = c(" var. " = " ",
-                                                                      " subsp. " = " "))
+#Replace NAs in Nonaccepted names for use in loop later
+
+synonyms_euro$EuroMedNonAccepted_formatted <- ifelse(is.na(synonyms_euro$EuroMedNonAccepted_formatted), 
+                                                     synonyms_euro$PlantListName,
+                                                     synonyms_euro$EuroMedNonAccepted_formatted)
+synonyms_euro[synonyms_euro == "Carex atrata subsp. atrata"] <- "Carex atrata atrata"
+
+#Now all names are in trinomial format without var. subsp. across all datasets
 
 #
 
 #Obj. 1) Update PhloAlps ####
+#Connect phyloalps data with Seb's names to corrected names provided by Julien
 
 #Check whether sequencing code is being read in the same way
 
@@ -95,10 +112,10 @@ combined_em_pa_alps <- combined_em_pa %>%
 
 #Join to flora_alpina
 
-pa_fa_combined <- left_join(combined_em_pa_alps, flora_alpina, by = c("EuroMedAcceptedName_formatted" = "FA_Full_names"))
+#pa_fa_combined <- left_join(combined_em_pa_alps, flora_alpina, by = c("EuroMedAcceptedName_formatted" = "FA_Full_names"))
 
-pa_without_fa <- pa_fa_combined %>% 
-  filter(is.na(Espece)) #1198 entries without flora alpina data
+#pa_without_fa <- pa_fa_combined %>% 
+#  filter(is.na(Espece)) #1198 entries without flora alpina data
 
 
 #Make loop that compares each flora alpina species to all the euromed synonyms, plus pulls out correct name
@@ -113,7 +130,7 @@ for (i in 1:length(flora_alpina$FA_Full_names)) {
   }
 }
 
-
+#Create column updating FA with the accepted names
 flora_alpina <- flora_alpina %>% 
   mutate(Complete_FA_Updated_by_euro = case_when(
     is.na(FA_Updated_by_euro) ~ FA_Full_names,
@@ -129,27 +146,37 @@ pa_without_updated_fa <- pa_fa_updated_combined %>%
 
 #Work out how many of them are because of subsp issues
 
-
+#Extract binomials from trinomials
 pa_without_updated_fa <- pa_without_updated_fa %>% 
   mutate(PhyloAlps_species_name = str_extract(EuroMedAcceptedName_formatted, "[A-Za-z]+ [a-z\\-]+") )
 
-ch <- intersect(pa_without_updated_fa$PhyloAlps_species_name, flora_alpina$Species) #349 entries 
+flora_alpina <-  flora_alpina %>% 
+  mutate(Accepted_binomials = str_extract(Complete_FA_Updated_by_euro, "[A-Za-z]+ [a-z\\-]+"))
+
+ch <- intersect(pa_without_updated_fa$PhyloAlps_species_name, flora_alpina$Accepted_binomials) #261 entries 
+#ch2 <- intersect(pa_without_updated_fa$PhyloAlps_species_name, flora_alpina$Species) #349
+
 
 recoverable_names <- pa_without_updated_fa %>% 
-  filter(PhyloAlps_species_name %in% ch) #All names that don't have FA but could
-recoverable_names <- recoverable_names[,c(1:11,84)] #Drop useless FA data
+  filter(PhyloAlps_species_name %in% ch) #All names that don't have FA because of subsp issues but could
+recoverable_names <- recoverable_names[,c(1:11,84)] #Drop FA columns that are artefact of earlier joins
 
+#Attach to fa data
 recoverable_names_with_fa <- left_join(recoverable_names, 
                                        flora_alpina, 
-                                       by = (c("PhyloAlps_species_name" = "Species")))
+                                       by = (c("PhyloAlps_species_name" = "Accepted_binomials")))
 
-names(recoverable_names_with_fa)[12] <- "Species"
+#Drop rows repeated due to joining (bse subspecies)
+recoverable_names_with_fa <- recoverable_names_with_fa %>% 
+  distinct(Sequencing_ID, .keep_all = T)
+
 
 setdiff(names(recoverable_names_with_fa), names(pa_fa_updated_combined))
 recoverable_names_with_fa <- recoverable_names_with_fa %>%
-  select(!Complete_FA_Updated_by_euro) #Now column names are the same for rejoining
+  select(!c(Complete_FA_Updated_by_euro, PhyloAlps_species_name)) #Now column names are the same for rejoining
 
-pa_fa_updated_combined_less_recover <- pa_fa_updated_combined %>% #The full dataset, removing rows to be rejoined later
+#First remove recoverable names from the original dataset, to be rejoined later
+pa_fa_updated_combined_less_recover <- pa_fa_updated_combined %>% 
   filter(!Sequencing_ID %in% recoverable_names_with_fa$Sequencing_ID)
   
 
@@ -158,23 +185,24 @@ pa_fa_updated_combined2 <- rbind(pa_fa_updated_combined_less_recover, recoverabl
 #What is still missing?
 t <- pa_fa_updated_combined2 %>% filter(is.na(Espece)) 
 #t <- t %>% 
-#  filter(!is.na(EuroMedAcceptedName_formatted))
-t <- t %>% 
-  distinct(EuroMedAcceptedName_formatted, .keep_all = T) #286 no alpina data
+#  distinct(EuroMedAcceptedName_formatted, .keep_all = T) #286 no alpina data
 
-#Check whether, of these, any of them match between the provider names and fa
+#Check whether, of these, any of them match between the provider names and fa. This checks for names
+#that were updated in the direct correspondences file but fa wasn't updated with the loop
 
 int_sub <- intersect(t$Provider_Name, flora_alpina$FA_Full_names) #64
+int_bi <- intersect(t$Provider_Name, flora_alpina$Accepted_binomials)
+int_sp <- intersect(t$Provider_Name, flora_alpina$Species)
+
+all_match <- union(int_bi, int_sp)
+all_match <- union(all_match, int_sub)
 
 #Do the same routine of removing them from the dataset then readding 
 
-t <- pa_fa_updated_combined2 %>% filter(is.na(Espece)) 
-int_sub <- intersect(t$Provider_Name, flora_alpina$FA_Full_names)
-
 recoverable_names <- pa_fa_updated_combined2 %>% 
-  filter(Provider_Name %in% int_sub) #All names that don't have FA but could
-setdiff(int_sub, recoverable_names$Provider_Name)
-recoverable_names <- recoverable_names[,c(1:11,83)] #Drop useless FA data
+  filter(Provider_Name %in% all_match) #All names that don't have FA but could
+setdiff(all_match, recoverable_names$Provider_Name)
+recoverable_names <- recoverable_names[,c(1:11)] #Drop useless FA data
 
 recoverable_names_with_fa <- left_join(recoverable_names, 
                                        flora_alpina, 
@@ -184,15 +212,16 @@ setdiff(names(recoverable_names_with_fa), names(pa_fa_updated_combined2))
 setdiff(names(pa_fa_updated_combined2), names(recoverable_names_with_fa))
 
 recoverable_names_with_fa <- recoverable_names_with_fa %>% 
-  select(-c("FA_Updated_by_euro.x",  "FA_Updated_by_euro.y", "Complete_FA_Updated_by_euro" ))
+  select(-c("Complete_FA_Updated_by_euro", "Accepted_binomials"))
 
-pa_fa_updated_combined2 <- pa_fa_updated_combined2 %>% 
-  select(-c("FA_Full_names", "FA_Updated_by_euro"))
 
 #Remove newly matched names from original
 
 pa_fa_updated_combined_less_recover <- pa_fa_updated_combined2 %>% #The full dataset, removing rows to be rejoined later
   filter(!Sequencing_ID %in% recoverable_names_with_fa$Sequencing_ID)
+
+pa_fa_updated_combined_less_recover <- pa_fa_updated_combined_less_recover %>% 
+  select(!FA_Full_names)
 
 pa_fa_updated_combined3 <- rbind(pa_fa_updated_combined_less_recover, recoverable_names_with_fa)
 
@@ -203,18 +232,6 @@ d <- d %>%
   distinct(EuroMedAcceptedName_formatted, .keep_all = T) #173 no alpina data
 
 
-
-#Look at species without a name from Julien
-phyloalps_no_euroname <- pa_fa_updated_combined3 %>% 
-  filter(is.na(EuroMedAcceptedName_formatted) & is.na(Espece))
-
-miss <- rbind(d[,1:11], phyloalps_no_euroname[1:11])
-
-#write.csv(miss, 
-#          file = "220215Species_without_fa_data.csv", row.names = F)
-
-
-
 taxonset <- pa_fa_updated_combined3 %>% 
   filter(!is.na(Espece))
 
@@ -222,20 +239,11 @@ taxonset <- pa_fa_updated_combined3 %>%
 corrected_species <- read.csv(here("Data", "220228_manually_coded_species2.csv"), sep = ";")
 corrected_species <- corrected_species[,1:13]
 
-added_species <- pa_fa_updated_combined3 %>% 
-  filter(Sequencing_ID %in% corrected_species$Sequencing_ID)
+setdiff(corrected_species$EuroMedAcceptedName_formatted, d$EuroMedAcceptedName_formatted) #Slight discrepancy bse manually checked on a older iteration of wranglng
 
-#d_corrected <- d %>% 
-#  filter(Sequencing_ID %in% c("BGN_IBH", "BGN_LFB", "BGN_DII", "BGN_DTT", "BGN_KIE",
-#                              "BGN_KHP", "BGN_CDD", "BGN_GPM", "BGN_FEM", "BGN_KGA",
-#                              "BGN_APT", "BGN_IGI", "BGN_GQR", "BGN_PQF", "GWM_1539",
-#                              "GWM_1231"))
-#more <- phyloalps_no_euroname %>% 
-#  filter(Sequencing_ID %in% c("BGN_IBH", "BGN_LFB", "BGN_DII", "BGN_DTT", "BGN_KIE",
-#                              "BGN_KHP", "BGN_CDD", "BGN_GPM", "BGN_FEM", "BGN_KGA",
-#                              "BGN_APT", "BGN_IGI", "BGN_GQR", "BGN_PQF", "GWM_1539",
-#                              "GWM_1231"))
-#added_species <- rbind(d_corrected, more)
+added_species <- pa_fa_updated_combined3 %>% 
+  filter(Sequencing_ID %in% corrected_species$Sequencing_ID) %>% 
+  filter(!Sequencing_ID %in% c("BGN_IHB", "BGN_KCF", "RSZ_RSZAXPI000688-80")) #Ignore species that since matched
 
 taxonset <- rbind(taxonset, added_species)
 
@@ -294,11 +302,13 @@ final_taxonset <- final_taxonset %>%
   select(!c(DB_ID, Sample_ID, Provider_Name, Scientific_Name, Nom_Taxon_verifie_ThePlantList,
             No_Flora_alpina, No_Famille, No_Genre, No_Espece, No_Sous_espece))
 
-#write.csv(final_taxonset, file = "220328_taxonset_resolved.csv", row.names = F)
+
+write.csv(final_taxonset, file = "220419_taxonset_resolved.csv", row.names = F)
 rm(list=ls(pattern="recover"))
 rm(list=ls(pattern="pa"))
 rm(list=ls(pattern="che"))
 rm(list=ls(pattern="euro"))
+rm(list=ls(pattern="int"))
 rm(temp)
 rm(t)
 rm(d)
@@ -311,7 +321,7 @@ rm(corrected_species)
 
 # Join to tree ####
 
-final_taxonset <- read.csv(here("Data", "220328_taxonset_resolved.csv"))
+final_taxonset <- read.csv(here("Data", "220419_taxonset_resolved.csv"))
 tree <- read.tree("/Users/larawootton/Documents/Doctorate/Tree_dating/Tree_files/220301_treePL_optimisation_run2_final.tre")
 tips <- tree$tip.label
 
@@ -336,8 +346,8 @@ taxon_reduced_to_tree <- final_taxonset %>%
 reduced_tree <- keep.tip(tree, taxon_reduced_to_tree$Tip)
 length(reduced_tree$tip.label)
 
-#write.tree(reduced_tree, file = "220328_for_Daisie_datedrun2.tre")
-#write.csv(taxon_reduced_to_tree, file = "220328_taxonset_with_tips.csv", row.names = F)
+#write.tree(reduced_tree, file = "220419_for_Daisie_datedrun2.tre")
+#write.csv(taxon_reduced_to_tree, file = "220419_taxonset_with_tips.csv", row.names = F)
 #The end
 
 
