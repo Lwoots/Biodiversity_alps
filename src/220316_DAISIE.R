@@ -13,8 +13,8 @@ library(DAISIE)
 
 #Data ####
 
-tree <- read.tree(here("Data", "220328_for_Daisie_datedrun2.tre"))
-sample_classification <- read.csv(here("Data", "220331_coding_endemics.csv"), sep = ";")
+tree <- read.tree("/Users/larawootton/Documents/Doctorate/Tree_dating/Tree_files/220301_treePL_optimisation_run2_final.tre")
+sample_classification <- read.csv(here("Data", "220421_coding_endemics_completed.csv"), sep = ";")
 
 
 #Wrangling####
@@ -27,6 +27,42 @@ tree <- keep.tip(tree, sample_classification$Tip)
 #Add filler to clade_name NAs
 
 sample_classification$Clade_name[is.na(sample_classification$Clade_name)] <- "main"
+
+#Correct some species that were filtered out incorrectly
+
+sample_classification$Status[sample_classification$Tip == "Ranunculus_breyninus_286868_PHA007444_BGN_HAR"] <- "Non_endemic_MaxAge"
+sample_classification$Clade_name[sample_classification$Tip == "Ranunculus_breyninus_286868_PHA007444_BGN_HAR"] <- "Ranunbrey"
+
+sample_classification$Status[sample_classification$Tip == "Ranunculus_crenatus_286892_CAR007457_BGN_MEG"] <- "Endemic"
+sample_classification$Clade_name[sample_classification$Tip == "Ranunculus_crenatus_286892_CAR007457_BGN_MEG"] <- "Ranunculus_4011"
+
+sample_classification$Status[sample_classification$Tip == "Aquilegia_alpina_218850_PHA009929_BGN_FQ"] <- "Non_endemic_MaxAge"
+sample_classification$Clade_name[sample_classification$Tip == "Aquilegia_alpina_218850_PHA009929_BGN_FQ"] <- "Aquilalp"
+
+sample_classification$Status[sample_classification$Tip == "Arenaria_ciliata_multicaulis_1403275_PHA000797_BGN_FLQ"] <- "Endemic"
+sample_classification$Clade_name[sample_classification$Tip == "Arenaria_ciliata_multicaulis_1403275_PHA000797_BGN_FLQ"] <- "Arenmulti"
+
+sample_classification$Status[sample_classification$Tip == "Trifolium_alpinum_97008_PHA010063_BGN_KSK"] <- "Non_endemic_MaxAge"
+sample_classification$Clade_name[sample_classification$Tip == "Trifolium_alpinum_97008_PHA010063_BGN_KSK"] <- "Trifalp"
+
+sample_classification$Status[sample_classification$Tip == "Euphrasia_salisburgensis_475020_PHA003604_BGN_BIG"] <- "Endemic"
+sample_classification$Status[sample_classification$Tip == "Euphrasia_micrantha_475390_TROM_V_131542_BXA_ALA"] <- "Endemic"
+sample_classification$Clade_name[sample_classification$Tip == "Euphrasia_micrantha_475390_TROM_V_131542_BXA_ALA"] <- "Euphrasia_1752"
+
+sample_classification$Status[sample_classification$Tip == "Valeriana_montana_243118_PHA010071_AXZ_T"] <- "Endemic"
+sample_classification$Clade_name[sample_classification$Tip == "Valeriana_montana_243118_PHA010071_AXZ_T"] <- "Valeriana_3013"
+
+sample_classification$Status[sample_classification$Tip == "Carex_bigelowii_dacica_1134499_CAR001779_BGN_LMT"] <- "Non_endemic_MaxAge"
+sample_classification$Clade_name[sample_classification$Tip == "Carex_bigelowii_dacica_1134499_CAR001779_BGN_LMT"] <- "Carbig"
+
+sample_classification$Status[sample_classification$Tip == "Carex_fuliginosa_241210_CAR001871_BGN_NAG"] <- "Non_endemic_MaxAge"
+sample_classification$Clade_name[sample_classification$Tip == "Carex_fuliginosa_241210_CAR001871_BGN_NAG"] <- "Carful"
+
+sample_classification$Status[sample_classification$Tip == "Poa_nemoralis_carpatica_1907909_CAR006858_BGN_NCI"] <- "Non_endemic_MaxAge"
+sample_classification$Clade_name[sample_classification$Tip == "Poa_nemoralis_carpatica_1907909_CAR006858_BGN_NCI"] <- "Poanem"
+
+sample_classification$Status[sample_classification$Tip == "Artemisia_umbelliformis_72355_PHA000880_BGN_CTR"] <- "Endemic"
+sample_classification$Clade_name[sample_classification$Tip == "Artemisia_umbelliformis_72355_PHA000880_BGN_CTR"] <- "Artemisia_2292"
 
 #Get node ages
 
@@ -109,6 +145,24 @@ daisie_df$Clade_name <- as.factor(daisie_df$Clade_name)
 daisie_df$Status <- as.factor(daisie_df$Status)
 daisie_df$Branching_times <- as.factor(daisie_df$Branching_times)
 
+#Add in missing species to relevent clades
+
+daisie_df$Status[daisie_df$Tip == "Euphrasia_minima_475014_PHA003596_BGN_ADL"] <- "Endemic"
+daisie_df$Missing_species[daisie_df$Clade_name == "Euphrasia_1749"] <- 1 #Euphrasia inopinata
+
+daisie_df$Status[daisie_df$Tip == "Juncus_triglumis_223682_PHA004931_BGN_BLE"] <- "Endemic"
+daisie_df$Missing_species[daisie_df$Clade_name == "Juncus_4995"] <- 1 #Juncus biglumis
+
+daisie_df$Status[daisie_df$Tip == "Lolium_perenne_4522_PHA005443_BGN_CGE"] <- "Endemic"
+daisie_df$Missing_species[daisie_df$Clade_name == "Lolium_4585"] <- 1 #Juncus biglumis
+
+daisie_df$Missing_species[daisie_df$Clade_name == "Ranunculus_4035"] <- 1 #Ranunculus venetus
+daisie_df$Missing_species[daisie_df$Clade_name == "Androsace_3359"] <- 1 #Androsace helvetica
+daisie_df$Missing_species[daisie_df$Clade_name == "Gentiana_2090"] <- 1 #Gentiana pilosa
+daisie_df$Missing_species[daisie_df$Clade_name == "SaxifragaA"] <- 1 #Saxifraga aspera
+daisie_df$Missing_species[daisie_df$Clade_name == "Poa_4668"] <- 1 #Poa pumila
+daisie_df$Missing_species[daisie_df$Clade_name == "Gymnadenia_4202"] <- 1 #Gymnadenia buschmanniae
+
 #write.csv(daisie_df, file = "220321_DAISE_df_test.csv", row.names = F)
 
 #Choosing reasonable parameter values ####
@@ -121,9 +175,9 @@ sp <- sample_classification %>%
   filter(n() > 1) %>% 
   filter(!Status %in% "Mainland") #552 species by cladogenesis, 116 lineages (length(uni_multi))
 552/116 # 4.758621 events per lineage
-log(4.758621)/35 #0.1359 events per lineage per Myr
+log(4.758621)/35 #0.04457023 events per lineage per Myr
 
-[0.001; 0.07; 0.14; 0.28; 1; 2]
+clado <- c(0.001, 0.045, 1.01)
 
 #Anagenesis
 
@@ -134,24 +188,24 @@ length(ana$Status)/35 #1 event per Myr
 
 #Per lineage, but what lineages? All island? All mainland? Is a lineage a species or event?
 
-35/(length(uni_multi)+length(tip_branch_ages$Status)) #Number anagenetic divided by island lineages 0.07526882
-0.07526882/35 #No. anagenetic events per lineage per year = 0.002
+35/length(tip_branch_ages$Status == "Non_endemic_MaxAge") #Number anagenetic divided by island lineages 0.07526882
+0.1/35 #No. anagenetic events per lineage per year = 0.002
 
-[0.001, 0.002, 0.01, 0.1, 0.5, 1]
+anagen <- c(0.0001, 0.002, 1.01)
 
 #Extinction
 
-0.5*0.14
-0.9*0.14
+0.5*0.04
+0.9*0.04
 
-[0; 0.07; 0.13]
+extinct <- c(0, 0.02, 0.036)
 
 #Carrying capacity
 
 total_sp <- sample_classification %>% 
   filter(!Status %in% c("Mainland"))
 
-[910; 1500, inf]
+cc <- c(910, 1500)
 
 #Colonisation
 
@@ -163,6 +217,7 @@ length(uni_multi)+length(colon$Status) + length(ana$Status)
 470/2243
 0.2095408/35 #0.006
 
+colon <- c(0.001, 0.2, 1.01)
 #
 
 
@@ -202,3 +257,9 @@ DAISIE_ML(
 #1 0.6623449 0.8075551 0.6076704 0.08273111 1.422221e-06 -3731.005  5    0
 
 DAISIE_tut
+
+
+#Make matrix of all combinations for running on cluster
+
+expand.grid(clado, extinct, colon, anagen)
+
