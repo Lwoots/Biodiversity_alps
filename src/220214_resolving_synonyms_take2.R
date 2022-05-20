@@ -302,8 +302,36 @@ final_taxonset <- final_taxonset %>%
   select(!c(DB_ID, Sample_ID, Provider_Name, Scientific_Name, Nom_Taxon_verifie_ThePlantList,
             No_Flora_alpina, No_Famille, No_Genre, No_Espece, No_Sous_espece))
 
+##Add in a few species that occur in the alps but were sequenced under other project names
+#Plus moehringiodes as a missed synonym
 
-write.csv(final_taxonset, file = "220419_taxonset_resolved.csv", row.names = F)
+extras <- combined_em_pa %>% 
+  filter(EuroMedAcceptedName_formatted %in% c("Ranunculus crenatus",
+                                              "Arenaria moehringioides",
+                                              "Carex bigelowii dacica",
+                                              "Carex fuliginosa",
+                                              "Poa nemoralis"),
+         !Sequencing_ID == "BGN_CBK")
+
+extras[extras$EuroMedAcceptedName_formatted == "Arenaria moehringioides", 1] <- "Arenaria ciliata"
+extras[extras$EuroMedAcceptedName_formatted == "Carex bigelowii dacica", 1] <- "Carex bigelowii"
+
+extras <- left_join(extras, flora_alpina, by = (c("EuroMedAcceptedName_formatted" = "Species")))
+extras <- extras %>% 
+  mutate(Species = rep(NA, 5),
+         Species_name_nas = rep(NA, 5),
+         Species_name = c(
+                          "Arenaria moehringioides",
+                          "Carex bigelowii dacica",
+                          "Carex fuliginosa",
+                          "Poa nemoralis",
+                          "Ranunculus crenatus"))
+extras <- extras %>% select(names(final_taxonset))
+
+final_taxonset <- bind_rows(final_taxonset, extras)
+
+
+write.csv(final_taxonset, file = "220520_taxonset_resolved.csv", row.names = F)
 rm(list=ls(pattern="recover"))
 rm(list=ls(pattern="pa"))
 rm(list=ls(pattern="che"))
