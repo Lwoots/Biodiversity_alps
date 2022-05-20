@@ -163,11 +163,15 @@ daisie_df$Missing_species[daisie_df$Clade_name == "SaxifragaA"] <- 1 #Saxifraga 
 daisie_df$Missing_species[daisie_df$Clade_name == "Poa_4668"] <- 1 #Poa pumila
 daisie_df$Missing_species[daisie_df$Clade_name == "Gymnadenia_4202"] <- 1 #Gymnadenia buschmanniae
 
-#write.csv(daisie_df, file = "220321_DAISE_df_test.csv", row.names = F)
+#write.csv(daisie_df, file = "220428_DAISE_df.csv", row.names = F)
 
 #Choosing reasonable parameter values ####
 
 #Alp age = 35 Myr
+
+continent <- sample_classification %>% 
+  filter(Status == "Mainland") %>% 
+  filter(!is.na(Nival))
 
 #Cladogenesis
 sp <- sample_classification %>% 
@@ -198,7 +202,7 @@ anagen <- c(0.0001, 0.002, 1.01)
 0.5*0.04
 0.9*0.04
 
-extinct <- c(0, 0.02, 0.036)
+extinct <- c(0.0001, 0.02, 0.036)
 
 #Carrying capacity
 
@@ -226,6 +230,7 @@ colon <- c(0.001, 0.2, 1.01)
 
 
 DAISIE_plot_island(daisie_df, island_age = 35)
+DAISIE_plot_age_diversity(daisie_df, island_age = 35)
 
 daisie_datalist <- DAISIE_dataprep( 
   datatable = daisie_df, 
@@ -238,7 +243,7 @@ DAISIE_ML(
   datalist = daisie_datalist, 
   initparsopt = c(0.14,0.07,9100,0.006,0.5), 
   ddmodel = 0, 
-  idparsopt = 1:5, 
+  idparsopt = c(1,3,2,4,5), 
   parsfix = NULL, 
   idparsfix = NULL
 ) 
@@ -261,5 +266,149 @@ DAISIE_tut
 
 #Make matrix of all combinations for running on cluster
 
-expand.grid(clado, extinct, colon, anagen)
+expand.grid(clado, cc,colon, anagen)
 
+
+
+#Simulate
+
+clado_rate <- 1.127254 # cladogenesis rate
+ext_rate <- 1.486281 # extinction rate
+clade_carr_cap <- 9100  # clade-level carrying capacity
+imm_rate <- 0.2338993 # immigration rate
+ana_rate <- 0.07476353 # anagenesis rate
+
+island_replicates_K <- DAISIE_sim_constant_rate( 
+  time = 35, 
+  M = 2300, 
+  pars = c(clado_rate, ext_rate, clade_carr_cap, imm_rate, ana_rate),
+  replicates = 10,
+  plot_sims = T,
+  divdepmodel = 'IW',
+  verbose = TRUE
+) 
+DAISIE_plot_sims(island_replicates_K10)
+
+
+#Summary stats ####
+
+
+#Colonisation times
+
+actual_ages <- vector()
+
+for (i in 1:length(uni_multi)) {
+  
+  radiation_node <- getMRCA(tree, sample_classification$Tip[sample_classification$Clade == uni_multi[i] ])
+  
+  stem <- Ancestors(tree, radiation_node, "parent")
+  actual_ages[i] <- node_ages[c(stem), 1]
+  
+}
+
+hist(actual_ages, xlim = c(0,35), breaks = 100)
+
+all_colon <- c(actual_ages, tip_branch_ages$Branching_times)
+hist(all_colon, xlim = c(0,35), breaks = 200)
+
+cdf <- data.frame(Colonisation = all_colon)
+
+ggplot(cdf, aes(x = Colonisation)) +
+  geom_histogram(colour = "white", binwidth = 0.5) +
+  xlim(c(0,35)) +
+  ylim(c(0,150)) +
+  theme_classic() +
+  theme(axis.text = element_text(colour = "black", size = 12),
+        axis.title = element_text(size = 18)) +
+  xlab("Time of colonisation (MYA)") +
+  ylab("Frequency")
+
+#Proportion of lineages that colonised
+
+tip_branch_ages %>% 
+  filter(Status == "Endemic") #62 anagenetic 0.096875 of lineages
+62/904 #0.068 of species
+
+532 - 62  #470 colonisations 0.73 of lineages
+470/904 #0.519
+
+108 #radiations 0.169
+904-532
+372/904 #0.41
+
+ldf <- data.frame(type = c("Colonisation", "Cladogenesis", "Anagenesis"),
+                  value = c(73,16.9, 9.68))
+sdf <- data.frame(type = c("Colonisation", "Cladogenesis", "Anagenesis"),
+                  value = c(51.9, 41, 6.8))
+
+library(khroma)
+
+p<-ggplot(ldf, aes(x=type, y=value, fill=type)) +
+  geom_bar(stat="identity",colour = "black", width = 0.9) +
+  theme_classic() +
+  ylab("Percentage of lineages (%)") +
+  xlab("") +
+  ylim(c(0,100)) +
+  scale_fill_muted() +
+  theme(axis.text = element_text(colour = "black", size = 10),
+        legend.position = "none")
+p
+
+
+d<-ggplot(sdf, aes(x=type, y=value, fill=type)) +
+  geom_bar(stat="identity", colour = "black", width = 0.9) +
+  theme_classic() +
+  ylab("Percentage of species (%)") +
+  xlab("") +
+  ylim(c(0,100)) +
+  scale_fill_muted() +
+  theme(axis.text = element_text(colour = "black", size = 10),
+        legend.position = "none") 
+d
+
+
+
+#Speciation timing
+
+
+
+
+
+rad_ages <- list()
+
+for (i in 1:length(uni_multi)) {
+  
+  radiation_node <- getMRCA(tree, sample_classification$Tip[sample_classification$Clade == uni_multi[i] ])
+  
+  rad_times <- Descendants(tree, radiation_node, type = "all")
+  rad_tips <- unlist(Descendants(tree, radiation_node, type = "tips"))
+  rad_nodes <- rad_times[!rad_times %in% rad_tips]
+  rad_ages[[i]] <- node_ages[c(radiation_node, rad_nodes), 1]
+  
+  
+}
+
+all_sp <- unlist(rad_ages)
+hist(all_sp)
+
+csdf <- data.frame(Sp = all_sp)
+
+ggplot(csdf, aes(x = Sp)) +
+  geom_histogram(colour = "white", binwidth = 1) +
+  xlim(c(0,35)) +
+  ylim(c(0,150)) +
+  theme_classic() +
+  theme(axis.text = element_text(colour = "black", size = 12),
+        axis.title = element_text(size = 18)) +
+  xlab("Time of cladogenetic speciation (MYA)") +
+  ylab("Frequency")
+
+
+#LTT
+
+w <- sample_classification %>% filter(!Status == "Mainland")
+west_tree <- keep.tip(tree, w$Tip)
+phytools::ltt(west_tree, log.lineages = T)
+phytools::ltt(tree, xlim = c(310,350), log.lineages = T)
+
+plot(west_tree)
