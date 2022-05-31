@@ -10,6 +10,8 @@ library(phangorn)
 library(glue)
 library(dispRity)
 library(DAISIE)
+library(phytools)
+
 
 #Data ####
 
@@ -114,6 +116,7 @@ for (i in 1:length(uni_multi)) {
 
 all_stem_ages <- data.frame(Branching_times = all_stem_ages)
 
+
 all_colonist_ages <- bind_rows(colonist_ages, all_stem_ages)
 all_colonist_ages[all_colonist_ages$Branching_times > 35, 11] <- 35
 events <- hist(all_colonist_ages$Branching_times, breaks = seq(0,35,1), plot = FALSE)$counts
@@ -127,8 +130,23 @@ ggplot(colon_df, aes(x = Time, y = Events)) +
   geom_point() +
   geom_smooth()
 
+cl <- extract.clade(tree, 5250, root.edge = 1)
+plot(cl, root.edge = T)
 
-#Cladogenesis
+axisPhylo()
+c2 <- extract.clade(tree, 5250, root.edge = 0)
+
+count_lineages_through_time(cl,
+                            times = c(1,2,3,4,5,6))
+
+test <- ltt(cl, log.lineages = F)
+test$times - test$times[6]
+
+test2 <- ltt(c2, log.lineages = F)
+test2$times - test2$times[length(test2$times)]
+test2$ltt
+
+#Cladogenesis ####
 
 island <- sample_classification %>% 
   filter(Status == "Endemic"
@@ -141,6 +159,8 @@ tree_island <- drop.tip(tree_island, ana$Tip)
 is.ultrametric(tree_island)
 tree_island <- force.ultrametric(tree_island, method = "extend")
 
+ltt <- ltt(tree_island, log.lineages = F)
+
 max(nodeHeights(tree_island)) - 35
 length(tree_island$tip.label)
 
@@ -149,7 +169,6 @@ no_lineages <- count_lineages_through_time(tree_island,
                                            ultrametric = T)
 
 plot(no_lineages$times, no_lineages$lineages)
-
 
 max(no_lineages$lineages)
 
@@ -171,7 +190,7 @@ clad <- ggplot(sp_df, aes(x = Time, y = Events)) +
 
 #Nomalising by total lineages
 
-colonist_ages[colonist_ages$Branching_times > 35, 11] <- 35
+colonist_ages[colonist_ages$Branching_times > 35, 11] <- 35 #Make lineages older than alps = 35 so are counted
 events <- hist(colonist_ages$Branching_times, breaks = seq(0,35,1), plot = FALSE)$counts
 
 colon_event <- cumsum(rev(events))
@@ -190,8 +209,6 @@ nor_clado <- ggplot(nor_sp_df, aes(x = Time, y = Events)) +
   geom_smooth(colour = "#D72000")+
   ylab("Speciation (normalised by all lineages)") +
   theme(axis.title.y = element_text(size = 10))
-
-
 
 
 
@@ -219,10 +236,6 @@ full_island <- force.ultrametric(full_island, method = "extend")
     rates[i] <- difference/no_lineages$lineages[i-1]
   }
   
-  
-
-
-
 
 
 
@@ -233,3 +246,39 @@ colo <- ggplot(colon_df, aes(x = Time, y = Events)) +
   ylab("Colonisation")
 
 ggpubr::ggarrange(nor_clado, clad, colo, ncol = 1)
+
+
+
+#Breaking into multiple tree
+
+multi <- sample_classification %>% 
+  group_by(Clade_name) %>% 
+  filter(n() > 1) %>% #To be a radiation need more than one tip
+  select(Clade_name) %>% 
+  pull()
+
+uni_multi <- unique(multi)
+uni_multi <- uni_multi[-1]
+
+
+##########################
+
+
+bt <- branching.times(cl)
+stem <- cl$root.edge + max(bt)
+bt <- c(stem, bt)
+no_sp <- c(1:length(bt))
+bts <- c(300, bt, 0)
+tot_sp <- c(0, no_sp, max(no_sp))
+
+raw_lineages <- data.frame(branch_times = bts,
+                           species_no = tot_sp)
+
+lins <- vector()
+for(i in 0:10) {
+  lins[i+1] <- max(raw_lineages$species_no[raw_lineages$branch_times >= i])
+}
+
+par(mfrow = c(1,2))
+plot(6:0, lins, type = "l")
+ltt(cl, log.lineages = F)
