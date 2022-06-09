@@ -50,6 +50,14 @@ euro_med[2642, 19] <- "Hierochloe australis"
 euro_med[2643, 19] <- "Hierochloe odorata"
 euro_med[1831, 19] <- "Hippophae rhamnoides"
 
+#SeqID swaps
+
+phyloalps$Sequencing_ID[phyloalps$DB_ID == "PHA005969"] <- "BGN_VR"
+phyloalps$Sequencing_ID[phyloalps$DB_ID == "PHA005323"] <- "BGN_VM"
+
+phyloalps$Sequencing_ID[phyloalps$DB_ID == "PHA005467"] <- "BGN_VP"
+phyloalps$Sequencing_ID[phyloalps$DB_ID == "PHA006334"] <- "BGN_VT"
+
 #Subsp wrangling
 
 #Next get subspecies and vars into same format across datasets
@@ -108,7 +116,7 @@ combined_em_pa <- left_join(euro_med_reduced, phyloalps, by = "Sequencing_ID")
 #Reduce phyloalps down to remove outgroups, norway etc
 
 combined_em_pa_alps <- combined_em_pa %>% 
-  filter(Project_name == "PhyloAlps")
+  filter(Project_name %in% c("PhyloAlps", "PhyloAlps-Carpathians"))
 
 #Join to flora_alpina
 
@@ -117,13 +125,26 @@ combined_em_pa_alps <- combined_em_pa %>%
 #pa_without_fa <- pa_fa_combined %>% 
 #  filter(is.na(Espece)) #1198 entries without flora alpina data
 
+#There's lots of instances where a name is in both the accepted and nonaccepted column of the synonymy sheet
+doubles <- synonyms_euro %>% 
+  filter(EuroMedAccepted %in% EuroMedNonAccepted | EuroMedNonAccepted %in% EuroMedAccepted)
+#I want to eventually retain all names that are in accepted column, regardless of whether they're in the nonaccepted
+#Make a column in the euro synonyms data to mark these instances
 
-#Make loop that compares each flora alpina species to all the euromed synonyms, plus pulls out correct name
+synonyms_euro <- synonyms_euro %>% 
+  mutate(Double = case_when(
+    EuroMedNonAccepted_formatted %in% EuroMedAccepted_formatted ~ 1,
+    !EuroMedNonAccepted_formatted %in% EuroMedAccepted_formatted ~ 0
+  ))
+
+
+
+#Make loop that compares each flora alpina species to all the euromed synonyms, plus pulls out correct name, plus accounts for doubles in synonyms list
 flora_alpina$FA_Updated_by_euro <- rep(NA, length(flora_alpina$FA_Full_names))
 
 for (i in 1:length(flora_alpina$FA_Full_names)) {
   for (j in 1:length(synonyms_euro$EuroMedNonAccepted)) {
-    if (flora_alpina$FA_Full_names[i] == synonyms_euro$EuroMedNonAccepted_formatted[j]) {
+    if (flora_alpina$FA_Full_names[i] == synonyms_euro$EuroMedNonAccepted_formatted[j] & synonyms_euro$Double[j] == 0) {
       flora_alpina$FA_Updated_by_euro[i] <- synonyms_euro$EuroMedAccepted_formatted[j]
       print(i/length(flora_alpina$FA_Full_names)*100)
     }
@@ -184,9 +205,9 @@ pa_fa_updated_combined2 <- rbind(pa_fa_updated_combined_less_recover, recoverabl
 
 #What is still missing?
 t <- pa_fa_updated_combined2 %>% filter(is.na(Espece)) 
-#t <- t %>% 
-#  distinct(EuroMedAcceptedName_formatted, .keep_all = T) #286 no alpina data
-
+tt <- t %>% 
+  filter(!is.na(EuroMedAcceptedName_formatted)) #286 no alpina data
+tt <- t %>% filter(!EuroMedAcceptedName_formatted == Provider_Name)
 #Check whether, of these, any of them match between the provider names and fa. This checks for names
 #that were updated in the direct correspondences file but fa wasn't updated with the loop
 
@@ -306,32 +327,25 @@ final_taxonset <- final_taxonset %>%
 #Plus moehringiodes as a missed synonym
 
 extras <- combined_em_pa %>% 
-  filter(EuroMedAcceptedName_formatted %in% c("Ranunculus crenatus",
-                                              "Arenaria moehringioides",
-                                              "Carex bigelowii dacica",
-                                              "Carex fuliginosa",
-                                              "Poa nemoralis"),
+  filter(EuroMedAcceptedName_formatted %in% c(
+                                              "Arenaria moehringioides"
+                                              ),
          !Sequencing_ID == "BGN_CBK")
 
 extras[extras$EuroMedAcceptedName_formatted == "Arenaria moehringioides", 1] <- "Arenaria ciliata"
-extras[extras$EuroMedAcceptedName_formatted == "Carex bigelowii dacica", 1] <- "Carex bigelowii"
 
 extras <- left_join(extras, flora_alpina, by = (c("EuroMedAcceptedName_formatted" = "Species")))
 extras <- extras %>% 
-  mutate(Species = rep(NA, 5),
-         Species_name_nas = rep(NA, 5),
+  mutate(Species = rep(NA, 1),
+         Species_name_nas = rep(NA, 1),
          Species_name = c(
-                          "Arenaria moehringioides",
-                          "Carex bigelowii dacica",
-                          "Carex fuliginosa",
-                          "Poa nemoralis",
-                          "Ranunculus crenatus"))
+                          "Arenaria moehringioides"))
 extras <- extras %>% select(names(final_taxonset))
 
 final_taxonset <- bind_rows(final_taxonset, extras)
 
 
-write.csv(final_taxonset, file = "220520_taxonset_resolved.csv", row.names = F)
+#write.csv(final_taxonset, file = "220609_taxonset_resolved.csv", row.names = F)
 rm(list=ls(pattern="recover"))
 rm(list=ls(pattern="pa"))
 rm(list=ls(pattern="che"))
